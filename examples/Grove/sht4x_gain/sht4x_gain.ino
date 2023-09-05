@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <Adafruit_TinyUSB.h> // for Serial
+#include <Adafruit_TinyUSB.h> 
 
 #include <grove_sensor.hpp>
 
@@ -12,8 +12,8 @@ void setup() {
     digitalWrite(PIN_POWER_SUPPLY_GROVE, HIGH);   //grove power on
     pinMode(PIN_POWER_SUPPLY_GROVE, OUTPUT);  
 
-    Serial1.begin(115200);
-    while (!Serial1) {
+    Serial.begin(115200);
+    while (!Serial) {
         delay(100);
     }
 
@@ -28,12 +28,12 @@ void setup() {
     uint32_t serialNumber;
     error = sht4x.serialNumber(serialNumber);
     if (error) {
-        Serial1.print("Error trying to execute serialNumber(): ");
+        Serial.print("Error trying to execute serialNumber(): ");
         errorToString(error, errorMessage, 256);
-        Serial1.println(errorMessage);
+        Serial.println(errorMessage);
     } else {
-        Serial1.print("Serial Number: ");
-        Serial1.println(serialNumber);
+        Serial.print("Serial Number: ");
+        Serial.println(serialNumber);
     }
 }
 
@@ -47,14 +47,14 @@ void loop() {
     float humidity;
     error = sht4x.measureHighPrecision(temperature, humidity);
     if (error) {
-        Serial1.print("Error trying to execute measureHighPrecision(): ");
+        Serial.print("Error trying to execute measureHighPrecision(): ");
         errorToString(error, errorMessage, 256);
-        Serial1.println(errorMessage);
+        Serial.println(errorMessage);
     } else {
-        Serial1.print("Temperature:");
-        Serial1.print(temperature);
-        Serial1.print("\t");
-        Serial1.print("Humidity:");
-        Serial1.println(humidity);
+        Serial.print("Temperature:");
+        Serial.print(temperature);
+        Serial.print("\t");
+        Serial.print("Humidity:");
+        Serial.println(humidity);
     }
 }
