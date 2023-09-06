@@ -26,6 +26,7 @@ void loop()
     for(int i=0; i<32; i++)
     {
         sum += analogRead(adcin);
+        delay(2);
     }
     adcvalue = sum >>5;
 
@@ -34,5 +35,6 @@ void loop()
     Serial.print((float)adcvalue * mv_per_lsb);
     Serial.println(" mV]");
 
-    delay(1000);
+    delay(2);
+    // delay(1000);
 }

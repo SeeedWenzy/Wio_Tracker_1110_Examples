@@ -173,13 +173,14 @@ void MyLbmxEventHandlers::almanacUpdate(const LbmxEvent& event)
 void MyLbmxEventHandlers::txDone(const LbmxEvent& event)
 {
     static uint32_t uplink_count = 0;
-
+    uint32_t confirmed_count = 0;
     if( event.event_data.txdone.status == SMTC_MODEM_EVENT_TXDONE_CONFIRMED )
     {
-        uplink_count ++;
+        app_lora_confirmed_count_increment();
     }
-
     uint32_t tick = smtc_modem_hal_get_time_in_ms( );
+    confirmed_count = app_lora_get_confirmed_count();
+    printf( "LoRa tx done at %u, %u, %u\r\n", tick, ++uplink_count, confirmed_count );    
 }
 
 void MyLbmxEventHandlers::wifiScanDone(const LbmxEvent& event)

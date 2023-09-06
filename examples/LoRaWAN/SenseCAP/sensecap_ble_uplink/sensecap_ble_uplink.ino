@@ -146,7 +146,7 @@ void MyLbmxEventHandlers::joinFail(const LbmxEvent& event)
 void MyLbmxEventHandlers::alarm(const LbmxEvent& event)
 {
     static uint32_t counter = 0;
-    app_task_lora_tx_engine();
+    // app_task_lora_tx_engine();
     if (LbmxEngine::startAlarm(UPLINK_PERIOD) != SMTC_MODEM_RC_OK) abort();
 }
 void MyLbmxEventHandlers::almanacUpdate(const LbmxEvent& event)
@@ -163,12 +163,14 @@ void MyLbmxEventHandlers::almanacUpdate(const LbmxEvent& event)
 void MyLbmxEventHandlers::txDone(const LbmxEvent& event)
 {
     static uint32_t uplink_count = 0;
-
+    uint32_t confirmed_count = 0;
     if( event.event_data.txdone.status == SMTC_MODEM_EVENT_TXDONE_CONFIRMED )
     {
-        uplink_count++;
+        app_lora_confirmed_count_increment();
     }
     uint32_t tick = smtc_modem_hal_get_time_in_ms( );
+    confirmed_count = app_lora_get_confirmed_count();
+    printf( "LoRa tx done at %u, %u, %u\r\n", tick, ++uplink_count, confirmed_count );    
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -223,23 +225,25 @@ void loop()
             if(position_period<120000) position_period = 120000;
             if(now_time - start_scan_time > 120000 ||(start_scan_time == 0))
             {
-                printf("start Scan ibeacon\r\n");
+                printf("start scan ibeacon\r\n");
                 app_ble_scan_start();
                 start_scan_time = smtc_modem_hal_get_time_in_ms( );
             }
-            // ledOff(LED_BUILTIN);
             if(smtc_modem_hal_get_time_in_ms( ) - start_scan_time > ble_scan_timeout &&(ble_scan_status == 2))
             {
+                app_ble_scan_stop( );
+                printf("stop scan ibeacon\r\n");
                 result = app_ble_get_results( tracker_ble_scan_data, &tracker_ble_scan_len );
                 if( result )
                 {
                     app_ble_display_results( );
                 }
-                sensor_datas_get();
+                app_task_track_scan_send();         //position data
+
+                sensor_datas_get();                 //sensor data
+                app_sensor_data_display_results();
+                app_task_factory_sensor_data_send();
                 //send data to LoRaWAN
-                app_task_track_scan_send();
-                app_ble_scan_stop( );
-                printf("stop Scan ibeacon\r\n");
             }
         }
         sleepTime = smtc_modem_hal_get_time_in_ms( )-now_time;
