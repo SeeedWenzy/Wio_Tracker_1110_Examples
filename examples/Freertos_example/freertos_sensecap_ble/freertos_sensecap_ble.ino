@@ -9,14 +9,17 @@
 
 static TaskHandle_t  LORAWAN_ENGINE_Handle;
 static TaskHandle_t  LORAWAN_TX_Handle;
+static TaskHandle_t  LORAWAN_RX_Handle;
 static TaskHandle_t  BLE_SCAN_Handle;
-
-
+static TaskHandle_t  COLLECT_VOC_Handle;
+static TaskHandle_t  COLLECT_SENSOR_Handle;
+static TaskHandle_t  COLLECT_SOUND_Handle;
+static TaskHandle_t  COLLECT_ULTRASONIC_Handle;
 
 void app_ble_scan_task_wakeup( void );
 void app_lora_engine_task_wakeup( void );
-void app_Lora_tx_task_wakeup( void );
-
+void app_lora_tx_task_wakeup( void );
+void app_lora_rx_task_wakeup( void );
 
 /* most important thing:
 // Please follow local regulations to set lorawan duty cycle limitations
@@ -70,7 +73,8 @@ protected:
     void joinFail(const LbmxEvent& event) override;
     void time(const LbmxEvent& event) override;
     void almanacUpdate(const LbmxEvent& event) override;  
-    void txDone(const LbmxEvent& event);      
+    void txDone(const LbmxEvent& event);    
+    void downData(const LbmxEvent& event);        
 };
 
 
@@ -88,10 +92,10 @@ void MyLbmxEventHandlers::reset(const LbmxEvent& event)
     printf("Join the LoRaWAN network.\n");
     if (LbmxEngine::joinNetwork() != SMTC_MODEM_RC_OK) abort();
 
-    if((REGION == SMTC_MODEM_REGION_EU_868) || (REGION == SMTC_MODEM_REGION_RU_864))
-    {
-        smtc_modem_set_region_duty_cycle( false );
-    }
+    // if((REGION == SMTC_MODEM_REGION_EU_868) || (REGION == SMTC_MODEM_REGION_RU_864))
+    // {
+    //     smtc_modem_set_region_duty_cycle( false );
+    // }
 
     state = StateType::Joining;
 }
@@ -110,7 +114,7 @@ void MyLbmxEventHandlers::joined(const LbmxEvent& event)
     printf("Start time sync.\n");
     if (smtc_modem_time_start_sync_service(0, SMTC_MODEM_TIME_ALC_SYNC) != SMTC_MODEM_RC_OK) abort();
 
-    app_Lora_tx_task_wakeup( );
+    app_lora_tx_task_wakeup( );
 }
 
 void MyLbmxEventHandlers::joinFail(const LbmxEvent& event)
@@ -125,12 +129,12 @@ void MyLbmxEventHandlers::time(const LbmxEvent& event)
     static bool first = true;
     if (first)
     {
-        printf("time sync ok\r\n");
         if( is_first_time_sync == false )
         {
             is_first_time_sync = true;
             app_ble_scan_task_wakeup();
         }
+        printf("time sync ok:current time:%d\r\n",app_task_track_get_utc( ));
         // Configure transmissions
         if (smtc_modem_set_nb_trans(0, 1) != SMTC_MODEM_RC_OK) abort();
         if (smtc_modem_connection_timeout_set_thresholds(0, 0, 0) != SMTC_MODEM_RC_OK) abort();
@@ -162,7 +166,27 @@ void MyLbmxEventHandlers::txDone(const LbmxEvent& event)
     confirmed_count = app_lora_get_confirmed_count();
     printf( "LoRa tx done at %u, %u, %u\r\n", tick, ++uplink_count, confirmed_count );    
 }
+void MyLbmxEventHandlers::downData(const LbmxEvent& event)
+{
+    uint8_t port;
+    printf("Downlink received:\n");
+    printf("  - LoRaWAN Fport = %d\n", event.event_data.downdata.fport);
+    printf("  - Payload size  = %d\n", event.event_data.downdata.length);
+    printf("  - RSSI          = %d dBm\n", event.event_data.downdata.rssi - 64);
+    printf("  - SNR           = %d dB\n", event.event_data.downdata.snr / 4);
 
+    if (event.event_data.downdata.length != 0)
+    {
+        port = event.event_data.downdata.fport;
+        gnss_mw_handle_downlink(event.event_data.downdata.fport, event.event_data.downdata.data, event.event_data.downdata.length);
+        if( port == app_lora_port )
+        {
+            app_lora_data_rx_size = event.event_data.downdata.length;
+            memcpy( app_lora_data_rx_buffer, event.event_data.downdata.data, app_lora_data_rx_size );
+            app_lora_rx_task_wakeup();
+        }
+    }
+}
 ////////////////////////////////////////////////////////////////////////////////
 // ModemEventHandler
 
@@ -183,9 +207,13 @@ void app_ble_scan_task_wakeup( void )
     xTaskNotifyGive( BLE_SCAN_Handle );
 }
 
-void app_Lora_tx_task_wakeup( void )
+void app_lora_tx_task_wakeup( void )
 {
     xTaskNotifyGive( LORAWAN_TX_Handle );
+}
+void app_lora_rx_task_wakeup( void )
+{
+    xTaskNotifyGive( LORAWAN_RX_Handle );
 }
 void app_Lora_engine_task_wakeup( void )
 {
@@ -209,24 +237,24 @@ void Ble_Scan_Task(void *parameter) {
         if(is_first_time_sync == false)
         {
             ( void )ulTaskNotifyTake( pdTRUE, portMAX_DELAY );
+                xTaskNotifyGive( COLLECT_SENSOR_Handle );
         }
         while(1)
         {
             printf("start scan ibeacon\r\n");
             app_ble_scan_start(); 
             vTaskDelay(5000);
+            app_ble_scan_stop( );
+            printf("stop scan ibeacon\r\n");
             bool result = false; 
             result = app_ble_get_results( tracker_ble_scan_data, &tracker_ble_scan_len );
             if( result )
             {
                 app_ble_display_results( );
             }
-            sensor_datas_get();
-            //send data to LoRaWAN
+            //Insert all sensor data to lora tx buffer
             app_task_track_scan_send();
-            app_ble_scan_stop( );
-            printf("stop scan ibeacon\r\n");
-            vTaskDelay(180000);
+            vTaskDelay(300000);
         }
     }
 }
@@ -246,6 +274,80 @@ void LoraWan_Tx_Task(void *parameter) {
         }
     }
 }
+// LoraWan_Rx_Task
+void LoraWan_Rx_Task( void * pvParameter )
+{   
+    while( true )
+    {
+        ( void )ulTaskNotifyTake( pdTRUE, portMAX_DELAY );
+        app_task_packet_downlink_decode( app_lora_data_rx_buffer, app_lora_data_rx_size );
+        memset(app_lora_data_rx_buffer,0,app_lora_data_rx_size);
+        app_lora_data_rx_size = 0;
+    }
+}
+// Collect_Voc_Task
+void Collect_Voc_Task(void *parameter) {
+    while (true) 
+    {
+        //get temperture&humidity for SGP internal compensation
+        single_fact_sensor_data_get(sht4x_sensor_type);     
+        single_fact_sensor_data_get(sgp41_sensor_type);
+        vTaskDelay( 10000 );
+    }
+}
+
+// Collect_Sensor_Task
+void Collect_Sensor_Task(void *parameter) {
+    while (true) 
+    {
+        if(is_first_time_sync == false)
+        {
+            ( void )ulTaskNotifyTake( pdTRUE, portMAX_DELAY );
+        }
+        while(1)
+        {
+            single_fact_sensor_data_get(lis3dhtr_sensor_type);                      // 1ms
+            single_fact_sensor_data_get(dps310_sensor_type);                        //219ms
+            single_fact_sensor_data_get(si1151_sensor_type);                        //4ms
+            factory_sensor_data_combined();
+            app_sensor_data_display_results();
+            //Insert all sensor data to lora tx buffer
+            app_task_factory_sensor_data_send();              //30ms
+            vTaskDelay( 180000 );
+        }
+    }
+}
+
+// Collect_Sound_Task
+void Collect_Sound_Task(void *parameter) {
+    while (true) 
+    {
+        single_fact_sensor_data_get(sound_sensor_type);                 //30ms
+        vTaskDelay( 10000 );
+    }
+}
+
+// Collect_Ultrasonic_Task
+void Collect_Ultrasonic_Task(void *parameter) {
+    while (true) 
+    {
+        //get temperture&humidity for SGP internal compensation
+        single_fact_sensor_data_get(ultrasonic_sensor_type);                 //5ms
+        if(ultrasonic_distance_cm < 10)
+        {
+            if(!relay_status_on())
+            {
+                relay_status_control(true); 
+            }
+        }
+        else if(relay_status_on())
+        {
+            relay_status_control(false);     
+        }
+        vTaskDelay( 10000 );
+    }
+}
+
 
 void setup() {
 
@@ -256,7 +358,7 @@ void setup() {
     sensor_init_detect();
     
     app_ble_scan_init();  
-
+    tracker_scan_type_set(TRACKER_SCAN_BLE);
     printf("\n---------- STARTUP ----------\n");
 
     lbmWm1110.begin();
@@ -266,12 +368,20 @@ void setup() {
 
     xTaskCreate(LoraWan_Engine_Task, "LoraWan_engine_Task", 256*8, NULL, 1, &LORAWAN_ENGINE_Handle);
 
-
     xTaskCreate(Ble_Scan_Task, "Ble_Scan_Task", 256*4, NULL, 3, &BLE_SCAN_Handle);
 
     xTaskCreate(LoraWan_Tx_Task, "LoraWan_Tx_Task", 256*2, NULL, 2, &LORAWAN_TX_Handle);
 
-    // vTaskStartScheduler();
+    xTaskCreate(LoraWan_Rx_Task, "LoraWan_Rx_Task", 256*2, NULL, 1, &LORAWAN_RX_Handle);
+
+    xTaskCreate(Collect_Voc_Task, "Collect_Voc_Task", 256*2, NULL, 1, &COLLECT_VOC_Handle); 
+
+    xTaskCreate(Collect_Sensor_Task, "Collect_Sensor_Task", 256*8, NULL, 1, &COLLECT_SENSOR_Handle); 
+
+    xTaskCreate(Collect_Sound_Task, "Collect_Sound_Task", 256*2, NULL, 1, &COLLECT_SOUND_Handle); 
+
+    xTaskCreate(Collect_Ultrasonic_Task, "Collect_Ultrasonic_Task", 256*2, NULL, 1, &COLLECT_ULTRASONIC_Handle); 
+
 }
  
 void loop() {

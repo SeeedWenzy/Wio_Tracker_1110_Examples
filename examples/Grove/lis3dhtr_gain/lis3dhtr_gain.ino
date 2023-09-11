@@ -1,6 +1,6 @@
 #include "LIS3DHTR.h"
 #include <Wire.h>
-#include <grove_sensor.hpp>
+#include <Adafruit_TinyUSB.h> // for Serial
 
 LIS3DHTR<TwoWire> LIS; //IIC
 #define WIRE Wire

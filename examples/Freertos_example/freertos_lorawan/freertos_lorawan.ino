@@ -11,7 +11,7 @@ static TaskHandle_t  LORAWAN_ENGINE_Handle;
 static TaskHandle_t  LORAWAN_TX_Handle;
 
 void app_lora_engine_task_wakeup( void );
-void app_Lora_tx_task_wakeup( void );
+void app_lora_tx_task_wakeup( void );
 
 /* most important thing:
 // Please follow local regulations to set lorawan duty cycle limitations
@@ -75,10 +75,10 @@ void MyLbmxEventHandlers::reset(const LbmxEvent& event)
     printf("Join the LoRaWAN network.\n");
     if (LbmxEngine::joinNetwork() != SMTC_MODEM_RC_OK) abort();
 
-    if((REGION == SMTC_MODEM_REGION_EU_868) || (REGION == SMTC_MODEM_REGION_RU_864))
-    {
-        smtc_modem_set_region_duty_cycle( false );
-    }
+    // if((REGION == SMTC_MODEM_REGION_EU_868) || (REGION == SMTC_MODEM_REGION_RU_864))
+    // {
+    //     smtc_modem_set_region_duty_cycle( false );
+    // }
 
     state = StateType::Joining;
 }
@@ -92,7 +92,7 @@ void MyLbmxEventHandlers::joined(const LbmxEvent& event)
     if (smtc_modem_adr_set_profile(0, SMTC_MODEM_ADR_PROFILE_CUSTOM, adr_custom_list_region) != SMTC_MODEM_RC_OK) abort();              //adr_custom_list_region  CUSTOM_ADR    
 
     printf("Start the alarm event.\n");
-    app_Lora_tx_task_wakeup( );
+    app_lora_tx_task_wakeup( );
 }
 
 void MyLbmxEventHandlers::joinFail(const LbmxEvent& event)
@@ -117,7 +117,7 @@ static void ModemEventHandler()
 }
 
 //---------------Task---------------- ---------------
-void app_Lora_tx_task_wakeup( void )
+void app_lora_tx_task_wakeup( void )
 {
     xTaskNotifyGive( LORAWAN_TX_Handle );
 }

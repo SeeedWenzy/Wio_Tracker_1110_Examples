@@ -33,9 +33,11 @@
 
 #include <Arduino.h>
 #include <Adafruit_TinyUSB.h> 
-#include <grove_sensor.hpp>
 
 #include <VOCGasIndexAlgorithm.h>
+
+#include "SensirionI2CSht4x.h"
+#include "SensirionI2CSgp41.h"
 
 SensirionI2CSht4x sht4x;
 SensirionI2CSgp41 sgp41;

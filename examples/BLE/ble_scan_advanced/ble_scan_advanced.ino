@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include <Adafruit_TinyUSB.h> // for Serial
+#include <Adafruit_TinyUSB.h> 
 
 #include <bluefruit.h>
 

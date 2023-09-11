@@ -2,7 +2,6 @@
 #include <Wire.h>
 #include <Adafruit_TinyUSB.h> // for Serial
 
-#include <grove_sensor.hpp>
 
 #include <Dps310.h>
 

@@ -2,7 +2,6 @@
 #include <Wire.h>
 #include <Adafruit_TinyUSB.h> 
 
-#include <grove_sensor.hpp>
 #include "Ultrasonic.h"
 
 int ultrasonic_pin    = D0;

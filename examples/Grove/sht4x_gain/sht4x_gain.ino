@@ -2,8 +2,7 @@
 #include <Wire.h>
 #include <Adafruit_TinyUSB.h> 
 
-#include <grove_sensor.hpp>
-
+#include "SensirionI2CSht4x.h"
 
 SensirionI2CSht4x sht4x;
 

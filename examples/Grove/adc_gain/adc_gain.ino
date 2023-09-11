@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include <Adafruit_TinyUSB.h> // for Serial
 
-#include <grove_sensor.hpp>
 
 int adcin    = A0;
 int adcvalue = 0;

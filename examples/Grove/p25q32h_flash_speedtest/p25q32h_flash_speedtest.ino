@@ -6,6 +6,7 @@
 #include <SPI.h>
 #include "Adafruit_SPIFlash.h"
 #include "flash_devices.h"
+#include <Adafruit_TinyUSB.h> // for Serial
 
 SPIFlash_Device_t const P25Q32H {
 	.total_size = (1UL << 22),    // 4MiB
