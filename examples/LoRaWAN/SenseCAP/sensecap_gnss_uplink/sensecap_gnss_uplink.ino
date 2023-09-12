@@ -26,7 +26,7 @@
 //  3.Modify parameters     =>      'position_period'
 //
 //  If the user has their own sensor
-//  4.Realize Sensor Data Acquisition Put into 'user_data_buff',set 'user_data_len'  £¨it's must be 4bytes/group£©
+//  4.Realize Sensor Data Acquisition Put into 'user_data_buff',set 'user_data_len'  (it's must be 4bytes/group)
 //  5.call  function                =>      'user_sensor_datas_set' 
 //  6.call  function                =>      'app_task_user_sensor_data_send'
 //
@@ -52,7 +52,7 @@ static constexpr smtc_modem_region_t REGION = SMTC_MODEM_REGION_EU_868;
 
 static constexpr uint32_t TIME_SYNC_VALID_TIME = 60 * 60 * 24;  // [sec.] 
 static constexpr uint32_t FIRST_UPLINK_DELAY = 20;  // [sec.]
-static constexpr uint32_t UPLINK_PERIOD = 15;       // [sec.]
+static constexpr uint32_t UPLINK_PERIOD = 10;       // [sec.]
 
 
 static constexpr uint32_t EXECUTION_PERIOD = 60000;    // [msec.]
@@ -374,104 +374,110 @@ void loop()
     uint32_t sleepTime = LbmxEngine::doWork();
 
     now_time = smtc_modem_hal_get_time_in_ms( );
-    if(sleepTime > 350)
+
+    if(sleepTime > 300)
     {
         //temperture & humidity & voc
         if(now_time - start_voc_read_time > voc_sample_period ||(start_voc_read_time == 0))
         {
             //the consumption time is about 260ms
             single_fact_sensor_data_get(sht4x_sensor_type);     //get temperture&humidity for SGP internal compensation
+            single_fact_sensor_display_results(sht4x_sensor_type);
             single_fact_sensor_data_get(sgp41_sensor_type);
+            single_fact_sensor_display_results(sgp41_sensor_type);
             start_voc_read_time = smtc_modem_hal_get_time_in_ms( );
             consume_time = start_voc_read_time - now_time;
             sleepTime = sleepTime - consume_time;
         }
+    }
         
-        if(is_first_time_sync == true)
+    if(is_first_time_sync == true)
+    {
+        if(sleepTime > 300)
         {
-            if(sleepTime > 300)
+            now_time = smtc_modem_hal_get_time_in_ms( );
+            if(now_time - start_scan_time > position_period ||(start_scan_time == 0))
             {
-                now_time = smtc_modem_hal_get_time_in_ms( );
-                if(now_time - start_scan_time > position_period ||(start_scan_time == 0))
-                {
-                    printf("start scan gnss\r\n");
-                    app_gps_scan_start();
-                    gnss_scan_end = false;
-                    start_scan_time = smtc_modem_hal_get_time_in_ms( );
-                    consume_time = start_scan_time - now_time;
-                }
-                if(((smtc_modem_hal_get_time_in_ms( ) - start_scan_time > gnss_scan_timeout)||(gnss_scan_end)) &&(gps_scan_status == 2))    //the consumption time is about 180ms
-                {
-                    result = app_gps_get_results( tracker_gps_scan_data, &tracker_gps_scan_len );
-                    if( result )
-                    {
-                        app_gps_display_results( );
-                    }
-                    printf("stop scan gnss\r\n");
-                    app_gps_scan_stop( );
-                    //Insert  position data to lora tx buffer
-                    app_task_track_scan_send();
-                    if(gnss_group_id_backup != track_gnss_group_id)
-                    {
-                        printf("save track_gnss_group_id\r\n");
-                        gnss_group_id_write();
-                    }
-                    consume_time = smtc_modem_hal_get_time_in_ms( ) - now_time; 
-                }      
-                sleepTime = sleepTime - consume_time; 
+                printf("start scan gnss\r\n");
+                app_gps_scan_start();
+                gnss_scan_end = false;
+                start_scan_time = smtc_modem_hal_get_time_in_ms( );
+                consume_time = start_scan_time - now_time;
             }
-            if(sleepTime > 320)
+            if(((smtc_modem_hal_get_time_in_ms( ) - start_scan_time > gnss_scan_timeout)||(gnss_scan_end)) &&(gps_scan_status == 2))    //the consumption time is about 180ms
             {
-                now_time = smtc_modem_hal_get_time_in_ms();
-                if(now_time - start_sensor_read_time > sensor_read_period ||(start_sensor_read_time == 0))
+                result = app_gps_get_results( tracker_gps_scan_data, &tracker_gps_scan_len );
+                if( result )
                 {
-                    single_fact_sensor_data_get(lis3dhtr_sensor_type);                      // 1ms
-                    single_fact_sensor_data_get(dps310_sensor_type);                        //219ms
-                    single_fact_sensor_data_get(si1151_sensor_type);                        //4ms
-                    factory_sensor_data_combined();
-                    app_sensor_data_display_results();
-                    //Insert all sensor data to lora tx buffer
-                    app_task_factory_sensor_data_send();
-                    start_sensor_read_time = smtc_modem_hal_get_time_in_ms( );
-                    consume_time = start_sensor_read_time - now_time; 
-                    sleepTime = sleepTime - consume_time;
+                    app_gps_display_results( );
                 }
-            }
+                printf("stop scan gnss\r\n");
+                app_gps_scan_stop( );
+                //Insert  position data to lora tx buffer
+                app_task_track_scan_send();
+                if(gnss_group_id_backup != track_gnss_group_id)
+                {
+                    printf("save track_gnss_group_id\r\n");
+                    gnss_group_id_write();
+                }
+                consume_time = smtc_modem_hal_get_time_in_ms( ) - now_time; 
+            }      
+            sleepTime = sleepTime - consume_time; 
         }
-        if(sleepTime > 50)
+        if(sleepTime > 1100)
         {
             now_time = smtc_modem_hal_get_time_in_ms();
-            if(now_time - start_sound_read_time > sound_sample_period ||(start_sound_read_time == 0))
+            if(now_time - start_sensor_read_time > sensor_read_period ||(start_sensor_read_time == 0))
             {
-                single_fact_sensor_data_get(sound_sensor_type);                 //30ms
-                start_sound_read_time = smtc_modem_hal_get_time_in_ms( );
-                consume_time = start_sound_read_time - now_time;             
+                single_fact_sensor_data_get(lis3dhtr_sensor_type);                      //consume  1ms     if reinitialize => 602ms
+                single_fact_sensor_data_get(dps310_sensor_type);                        //consume  219ms   if reinitialize => 335ms
+                single_fact_sensor_data_get(si1151_sensor_type);                        //consume  4ms     if reinitialize => 98ms
+                factory_sensor_data_combined();
+                app_sensor_data_display_results();
+                //Insert all sensor data to lora tx buffer
+                app_task_factory_sensor_data_send();
+                start_sensor_read_time = smtc_modem_hal_get_time_in_ms( );
+                consume_time = start_sensor_read_time - now_time; 
                 sleepTime = sleepTime - consume_time;
-            }                          
-        }        
-        if(sleepTime > 50)
-        {
-            now_time = smtc_modem_hal_get_time_in_ms();
-            if(now_time - start_ultrasonic_read_time > ultrasonic_sample_period ||(start_ultrasonic_read_time == 0))
-            {
-                single_fact_sensor_data_get(ultrasonic_sensor_type);                 //if connected it will be 3ms,else 40ms timeout 
-                if(ultrasonic_distance_cm < 10)
-                {
-                    if(!relay_status_on())
-                    {
-                        relay_status_control(true); 
-                    }
-                }
-                else if(relay_status_on())
-                {
-                    relay_status_control(false);     
-                }
-                start_ultrasonic_read_time = smtc_modem_hal_get_time_in_ms( );
-                consume_time = start_ultrasonic_read_time - now_time;             
-                sleepTime = sleepTime - consume_time;
-            }                          
+            }
         }
     }
+    if(sleepTime > 50)
+    {
+        now_time = smtc_modem_hal_get_time_in_ms();
+        if(now_time - start_sound_read_time > sound_sample_period ||(start_sound_read_time == 0))
+        {
+            single_fact_sensor_data_get(sound_sensor_type);                 //30ms
+            single_fact_sensor_display_results(sound_sensor_type);
+            start_sound_read_time = smtc_modem_hal_get_time_in_ms( );
+            consume_time = start_sound_read_time - now_time;             
+            sleepTime = sleepTime - consume_time;
+        }                          
+    }        
+    if(sleepTime > 50)
+    {
+        now_time = smtc_modem_hal_get_time_in_ms();
+        if(now_time - start_ultrasonic_read_time > ultrasonic_sample_period ||(start_ultrasonic_read_time == 0))
+        {
+            single_fact_sensor_data_get(ultrasonic_sensor_type);                 //if connected it will be 3ms,else 40ms timeout 
+            single_fact_sensor_display_results(ultrasonic_sensor_type);
+            if(ultrasonic_distance_cm < 10)
+            {
+                if(!relay_status_on())
+                {
+                    relay_status_control(true); 
+                }
+            }
+            else if(relay_status_on())
+            {
+                relay_status_control(false);     
+            }
+            start_ultrasonic_read_time = smtc_modem_hal_get_time_in_ms( );
+            consume_time = start_ultrasonic_read_time - now_time;             
+            sleepTime = sleepTime - consume_time;
+        }                          
+    }
+
     delay(min(sleepTime, EXECUTION_PERIOD));
 }
 
